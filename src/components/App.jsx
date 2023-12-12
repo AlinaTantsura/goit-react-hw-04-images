@@ -1,4 +1,4 @@
-import { Component } from "react";
+import { useEffect, useState } from "react";
 import Searchbar from "./Searchbar/Searchbar";
 import {fetchPictures} from "../API"
 import ImageGallery from "./ImageGallery/ImageGallery";
@@ -10,120 +10,111 @@ import Modal from "./Modal/Modal";
 import { Notify } from "notiflix";
 import { nanoid } from "nanoid";
 
-class App extends Component{
-    state={
-        imagesArray: [],
-        searchValue: '',
-        isLoad: false,
-        page: 1,
-        totalHits: 0,
-        pictureInfo: null,
-        isOpenModal: false,
-    }
+const App = () => {
+    const [images, setImages] = useState([]);
+    const [searchValue, setSearchValue] = useState('');
+    const [isLoad, setIsLoad] = useState(false);
+    const [page, setPage] = useState(1);
+    const [totalHits, setTotalHits] = useState(0);
+    const [pictureInfo, setPictureInfo] = useState(null);
+    const [isOpenModal, setIsOpenModal] = useState(false);
+    const [isLoadMore, setIsLoadMore] = useState(false);
 
-    componentDidUpdate(_, prevState) {
-        if (prevState.searchValue !== this.state.searchValue ) {
-            this.setState({
-                isLoad: true,
-                page: 1,
-                totalHits: 0,
-                imagesArray:[],
-            });
-            this.handleFetchPictures();
-            
-        }
-        
-        if (prevState.page !== this.state.page && this.state.page !==1) {
-            this.handleFetchPictures();
-        }
-    } 
+    
+    useEffect(() => {
+        if (searchValue) {
+            setIsLoad(true);
+            handleFetchPictures();
+        } 
+    }, [searchValue]);
 
-    handleFetchPictures = async() => {
+    useEffect(() => {
+       if(page!==1) handleFetchPictures();
+    }, [page])
+
+    async function handleFetchPictures() {
         try {
-            const resp = await fetchPictures(this.state.searchValue, this.state.page);
-            // this.setState((prev)=>({imagesArray: [...prev.imagesArray, ...resp.data.hits]}))
-            // this.setState((prev) => ({ imagesArray: [...prev.imagesArray, ...resp.data.hits.filter((item) => (!this.state.imagesArray.find(({ id }) => id === item.id)))] }))
-            this.setState((prev) => ({
-                imagesArray: [...prev.imagesArray, ...resp.data.hits.map((item) => {
+            const resp = await fetchPictures(searchValue, page);
+            setImages((prevImages) => {
+               return [...prevImages, ...resp.data.hits.map((item) => {
                         item.id = nanoid();
-                        return item; 
+                        return item;
                 })]
-            }))
-           
-            if (this.state.page === 1) {
-                if (resp.data.totalHits === 0 || resp.data.hits.length === 0) {
+           })
+            if (page === 1) {
+                 if (resp.data.totalHits === 0) {
                     Notify.warning("There are no images to your request. Change search word!")
                     return;
                 }
-                else if (resp.data.totalHits <= resp.data.hits.length) {
+                 else if (resp.data.totalHits <= resp.data.hits.length) {
+                     setIsLoadMore(false);
                     Notify.success(`Hooray! We found ${resp.data.totalHits} images`);
                     Notify.info("There are all found images");
-                    return;    
+                    return;
                 }
                 else {
-                    this.setState({
-                        totalHits: resp.data.totalHits,
-                        isLoadMore: true,
-                    })
+                     setTotalHits(resp.data.totalHits);
+                     setIsLoadMore(true);
                     Notify.success(`Hooray! We found ${resp.data.totalHits} images`)
                     return;
                 }
-            }  
+            }
             }
         catch (error) {
             Notify.failure(`${error.message}`)
         }
         finally{
-            this.setState({
-                isLoad: false,
-            })
+            setIsLoad(false);
         }
         
     }
 
-    onSubmit = (e) => {
-        e.preventDefault();
-        if (this.state.searchValue === e.target.elements.search.value) return;
-        this.setState({ searchValue: e.target.elements.search.value, imagesArray: [], page: 1 });
-    }
-    handleClick = () => {
-        let page = this.state.page;
-        this.setState({ page: page += 1 });
-    }
     
-    handleOpenModal = ({currentTarget, target}) => {
-        if (currentTarget === target) return;
-        const picId = this.state.imagesArray.find((item) => (item.id === target.id));
-        this.setState({
-            pictureInfo: picId ,
-            isOpenModal: true,
-        });
+    function onSubmit(e) {
+        e.preventDefault();
+        if (searchValue === e.target.elements.search.value) return;
+        setSearchValue(e.target.elements.search.value);
+        setImages([]);
+        setPage(1);
+        setTotalHits(0);
     }
 
-    closeModal = (e) => {
-        const { currentTarget, target } = e;
-        if (currentTarget === target || e.key === "Escape") this.setState({ isOpenModal: false });
+     function handleClick(){
+         setPage((prevPage) => prevPage += 1);
+    }
+    
+    function handleOpenModal ({currentTarget, target}) {
+        if (currentTarget === target) return;
+        const picId = images.find((item) => (item.id === target.id));
+        if (picId) {
+            setPictureInfo(picId);
+            setIsOpenModal(true)
+        };
+
+    }
+
+    function closeModal ({ currentTarget, target, key}){
+        if (currentTarget === target || key === "Escape") setIsOpenModal(false);
         return;
     }
 
-    
-    render() {
-      const  { isLoad, imagesArray, totalHits, isOpenModal, pictureInfo } = this.state;
-        return (
+    return (
             <Container>
-                <Searchbar onSubmit={this.onSubmit} />
+                <Searchbar onSubmit={onSubmit} />
                 {isLoad ? (<Loader styles="left: 50%"/>) : (<>
-                    <ImageGallery onClick={this.handleOpenModal}>
-                        <ImageGalleryItem array={imagesArray} />
+                    <ImageGallery onClick={handleOpenModal}>
+                        <ImageGalleryItem array={images} />
                     </ImageGallery>
-                    {(imagesArray.length < totalHits && totalHits !== 0) && (
-                        <Button onClick={this.handleClick} />
+                    {isLoadMore && (
+                        <Button onClick={handleClick} />
                     )}
-                    {(imagesArray.length >= totalHits && totalHits !== 0) && Notify.info("There are all found images))))")}
+                    {(images.length >= totalHits && totalHits !== 0) && Notify.info("There are all found images))))")}
                 </>)}
-                {isOpenModal && (<Modal pictureInfo={pictureInfo} closeModal={this.closeModal} />)}
+                {isOpenModal && (<Modal pictureInfo={pictureInfo} closeModal={closeModal} />)}
             </Container>
         )
-    }
+
+
+
 }
 export default App;
