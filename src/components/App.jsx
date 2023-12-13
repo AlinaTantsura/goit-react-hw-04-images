@@ -22,25 +22,19 @@ const App = () => {
 
     
     useEffect(() => {
-        if (searchValue) {
-            setIsLoad(true);
+        if (searchValue || page!==1) {
             handleFetchPictures();
         } 
-    }, [searchValue]);
-
-    useEffect(() => {
-       if(page!==1) handleFetchPictures();
-    }, [page])
-
-    async function handleFetchPictures() {
-        try {
-            const resp = await fetchPictures(searchValue, page);
-            setImages((prevImages) => {
-               return [...prevImages, ...resp.data.hits.map((item) => {
+        
+        async function handleFetchPictures() {
+            try {
+                const resp = await fetchPictures(searchValue, page);
+                setImages((prevImages) => {
+                    return [...prevImages, ...resp.data.hits.map((item) => {
                         item.id = nanoid();
                         return item;
-                })]
-           })
+                    })]
+                })
             if (page === 1) {
                  if (resp.data.totalHits === 0) {
                     Notify.warning("There are no images to your request. Change search word!")
@@ -68,8 +62,8 @@ const App = () => {
         }
         
     }
+    }, [searchValue, page]);
 
-    
     function onSubmit(e) {
         e.preventDefault();
         if (searchValue === e.target.elements.search.value) return;
@@ -77,6 +71,7 @@ const App = () => {
         setImages([]);
         setPage(1);
         setTotalHits(0);
+        setIsLoad(true);
     }
 
      function handleClick(){
@@ -90,10 +85,9 @@ const App = () => {
             setPictureInfo(picId);
             setIsOpenModal(true)
         };
-
     }
 
-    function closeModal ({ currentTarget, target, key}){
+     function closeModal ({ currentTarget, target, key}){
         if (currentTarget === target || key === "Escape") setIsOpenModal(false);
         return;
     }
@@ -105,12 +99,12 @@ const App = () => {
                     <ImageGallery onClick={handleOpenModal}>
                         <ImageGalleryItem array={images} />
                     </ImageGallery>
-                    {isLoadMore && (
+                    {(isLoadMore && images.length < totalHits) && (
                         <Button onClick={handleClick} />
                     )}
                     {(images.length >= totalHits && totalHits !== 0) && Notify.info("There are all found images))))")}
                 </>)}
-                {isOpenModal && (<Modal pictureInfo={pictureInfo} closeModal={closeModal} />)}
+                {isOpenModal && (<Modal pictureInfo={pictureInfo} closeModal={closeModal}/>)}
             </Container>
         )
 
